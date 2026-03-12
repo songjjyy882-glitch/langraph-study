@@ -5,9 +5,8 @@ import json
 from typing import Optional
 import uuid
 
-from langchain_openai import ChatOpenAI
-
 from app.utils.logger import log_execution, custom_logger
+from app.agents.agent import build_agent
 
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
@@ -15,25 +14,12 @@ from langgraph.errors import GraphRecursionError
 
 class AgentService:
     def __init__(self):
-        # 여기에 LLM 초기화
-        self.model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)  # 예시로 OpenAI 모델 사용
-
-        # IMP: LangChain을 통해 사용할 LLM(OpenAI) 객체 초기화 구현. 에이전트의 두뇌 역할을 합니다.
         self.agent = None
         self.progress_queue: asyncio.Queue = asyncio.Queue()
 
-    # 체크포인트 생성
-    async def _init_checkpointer(self):
-        # 여기에 구현
-        pass
-
     def _create_agent(self, thread_id: uuid.UUID = None):
-        """LangChain 에이전트 생성"""
-        # IMP: DeepAgents 라이브러리를 사용하여 LangGraph 기반의 에이전트를 생성하는 구현.
-        # LLM 모델, 사용할 도구(Tools), 시스템 프롬프트, 상태 저장소(Checkpointer), 그리고 응답 포맷(ToolStrategy)을 결합하여 워크플로우를 초기화합니다.
-        # Agent 생성
-        from app.agents.dummy import Agent
-        self.agent = Agent()
+        """LangGraph ReAct 에이전트 생성 (checkpointer 내장)"""
+        self.agent = build_agent()
 
     # 실제 대화 로직
     @log_execution
@@ -104,13 +90,13 @@ class AgentService:
                     custom_logger.info(f"에이전트 청크: {chunk}")
                     try:
                         for step, event in chunk.items():
-                            if not event or not (step in ["model", "tools"]):
+                            if not event or not (step in ["model", "agent", "tools"]):
                                 continue
                             messages = event.get("messages", [])
                             if len(messages) == 0:
                                 continue
                             message = messages[0]
-                            if step == "model":
+                            if step in ("model", "agent"):
                                 tool_calls = message.tool_calls
                                 if not tool_calls:
                                     continue
@@ -121,6 +107,14 @@ class AgentService:
                                     custom_logger.info("========================================")
                                     custom_logger.info(args)
                                     yield f'{{"step": "done", "message_id": {json.dumps(args.get("message_id"))}, "role": "assistant", "content": {json.dumps(args.get("content"), ensure_ascii=False)}, "metadata": {json.dumps(self._handle_metadata(metadata), ensure_ascii=False)}, "created_at": "{datetime.utcnow().isoformat()}"}}'
+                                    # done 이후 나머지 chunk를 소비하여 checkpointer에 완전한 히스토리 저장
+                                    async for _ in agent_iterator:
+                                        pass
+                                    if progress_task is not None:
+                                        progress_task.cancel()
+                                        with contextlib.suppress(asyncio.CancelledError):
+                                            await progress_task
+                                    return
                                 else:
                                     yield f'{{"step": "model", "tool_calls": {json.dumps([tool["name"] for tool in tool_calls])}}}'
                             if step == "tools":
