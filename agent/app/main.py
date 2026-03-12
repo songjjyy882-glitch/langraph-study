@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.routes.threads import threads_router
 from app.api.routes.chat import chat_router
+from app.api.routes.baseball_chat import baseball_chat_router
 from app.utils.logger import custom_logger
 
 app = FastAPI(
@@ -27,6 +28,7 @@ app.add_middleware(
 # API 라우터 등록
 api_router.include_router(threads_router, tags=["threads"])
 api_router.include_router(chat_router, tags=["chat"])
+api_router.include_router(baseball_chat_router, tags=["baseball"])
 
 app.include_router(api_router)
 

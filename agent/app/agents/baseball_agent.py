@@ -5,7 +5,7 @@ from langchain.agents import create_agent as _create_agent
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.tools import tool
 
-from app.agents.prompts import system_prompt
+from app.agents.baseball_prompts import baseball_system_prompt
 from app.agents.baseball_tools import baseball_tools
 from app.core.config import settings
 
@@ -26,11 +26,11 @@ def ChatResponse(message_id: str, content: str, metadata: dict) -> str:
 _checkpointer = MemorySaver()
 
 
-def build_agent(
+def build_baseball_agent(
     model_name: Optional[str] = None,
     temperature: float = 0.7,
 ):
-    """LangGraph ReAct 에이전트를 생성합니다."""
+    """MLB 야구 분석 전용 LangGraph ReAct 에이전트를 생성합니다."""
     llm = ChatOpenAI(
         model=model_name or settings.OPENAI_MODEL,
         temperature=temperature,
@@ -40,7 +40,7 @@ def build_agent(
     agent = _create_agent(
         model=llm,
         tools=[*baseball_tools, ChatResponse],
-        system_prompt=system_prompt,
+        system_prompt=baseball_system_prompt,
         checkpointer=_checkpointer,
     )
 
