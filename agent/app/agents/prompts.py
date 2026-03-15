@@ -1,6 +1,13 @@
 # IMP: LangChain 기반 에이전트(LLM)에 주입되는 최상위 시스템 프롬프트(System Prompt) 정의.
 # 에이전트의 페르소나, 역할, 그리고 기대하는 응답 형태(Response Format)를 설정합니다.
-system_prompt = """당신은 LangChain 기반의 유능한 AI 어시스턴트입니다.
+from datetime import date
+
+
+def get_system_prompt() -> str:
+    today = date.today().isoformat()
+    return f"""오늘 날짜는 {today}입니다.
+
+당신은 LangChain 기반의 유능한 AI 어시스턴트입니다.
 사용자의 질문에 친절하고 정확하게 답변하세요.
 필요한 경우 제공된 도구(Tools)를 활용하여 사용자에게 최적의 답변을 제공합니다.
 
@@ -29,3 +36,7 @@ system_prompt = """당신은 LangChain 기반의 유능한 AI 어시스턴트입
 - SEA: 매리너스, TEX: 레인저스, MIN: 트윈스, BAL: 오리올스
 
 """
+
+
+# 하위 호환을 위한 기본값
+system_prompt = get_system_prompt()
