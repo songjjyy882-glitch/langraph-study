@@ -6,29 +6,24 @@ from typing import Optional
 import uuid
 
 from app.utils.logger import log_execution, custom_logger
-from app.agents.baseball_agent import build_baseball_agent
+from app.agents.baseball_agent import get_baseball_agent
 
 from langgraph.errors import GraphRecursionError
 
 
 class BaseballAgentService:
     def __init__(self):
-        self.agent = None
         self.progress_queue: asyncio.Queue = asyncio.Queue()
-
-    def _create_agent(self, thread_id: uuid.UUID = None):
-        """MLB 야구 분석 에이전트 생성"""
-        self.agent = build_baseball_agent()
 
     @log_execution
     async def process_query(self, user_messages: str, thread_id: uuid.UUID):
         """사용자 쿼리를 처리하고 스트리밍으로 반환합니다."""
         try:
-            self._create_agent(thread_id=thread_id)
+            agent = get_baseball_agent()
 
             custom_logger.info(f"[Baseball] 사용자 메시지: {user_messages}")
 
-            agent_stream = self.agent.astream(
+            agent_stream = agent.astream(
                 {"messages": [{"role": "user", "content": user_messages}]},
                 config={"configurable": {"thread_id": str(thread_id)}},
                 stream_mode="updates",

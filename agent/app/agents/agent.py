@@ -26,6 +26,9 @@ def ChatResponse(message_id: str, content: str, metadata: dict) -> str:
 _checkpointer = MemorySaver()
 
 
+_agent = None
+
+
 def build_agent(
     model_name: Optional[str] = None,
     temperature: float = 0,
@@ -44,3 +47,11 @@ def build_agent(
     )
 
     return agent
+
+
+def get_agent():
+    """싱글턴 에이전트 인스턴스를 반환합니다."""
+    global _agent
+    if _agent is None:
+        _agent = build_agent()
+    return _agent

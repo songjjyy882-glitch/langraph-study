@@ -6,33 +6,27 @@ from typing import Optional
 import uuid
 
 from app.utils.logger import log_execution, custom_logger
-from app.agents.agent import build_agent
+from app.agents.agent import get_agent
 
 from langgraph.errors import GraphRecursionError
 
 
 class AgentService:
     def __init__(self):
-        self.agent = None
         self.progress_queue: asyncio.Queue = asyncio.Queue()
-
-    def _create_agent(self, thread_id: uuid.UUID = None):
-        """LangGraph ReAct 에이전트 생성 (checkpointer 내장)"""
-        self.agent = build_agent()
 
     # 실제 대화 로직
     @log_execution
     async def process_query(self, user_messages: str, thread_id: uuid.UUID):
         """LangChain Messages 형식의 쿼리를 처리하고 AIMessage 형식으로 반환합니다."""
         try:
-            # 에이전트 초기화 (한 번만)
-            self._create_agent(thread_id=thread_id)
+            agent = get_agent()
 
             custom_logger.info(f"사용자 메시지: {user_messages}")
 
             # IMP: LangGraph 에이전트에 사용자의 메시지를 HumanMessage 형태로 전달하고, 
             # thread_id를 통해 대화 문맥(Context)을 유지하며 비동기 스트리밍(astream)으로 실행하는 구현.
-            agent_stream = self.agent.astream(
+            agent_stream = agent.astream(
                 {"messages": [{"role": "user", "content": user_messages}]},
                 config={"configurable": {"thread_id": str(thread_id)}},
                 stream_mode="updates",
