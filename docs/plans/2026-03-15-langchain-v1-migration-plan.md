@@ -247,11 +247,11 @@ ModelFallbackMiddleware("gpt-4o-mini", "claude-sonnet-4-6")
 - [x] `HumanMessage` → dict 형태 변경
 - [ ] 동작 테스트
 
-### Phase 2 (구조 개선) ✅ (싱글턴 적용 완료)
+### Phase 2 (구조 개선) ✅
 - [x] 에이전트 싱글턴 패턴 적용
-- [ ] Structured Output 적용 (ChatResponse 도구 제거)
+- [x] Structured Output 적용 (ChatResponse 도구 제거)
 - [ ] 도구 `args_schema` Pydantic 모델 추가
-- [ ] `agent_service.py` 스트리밍 로직 수정
+- [x] `agent_service.py` 스트리밍 로직 수정
 - [ ] 동작 테스트
 
 ### Phase 3 (미들웨어) ✅
