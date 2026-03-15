@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from langchain_core.tools import tool
+from langchain.tools import tool
 from pybaseball import (
     batting_stats,
     pitching_stats,

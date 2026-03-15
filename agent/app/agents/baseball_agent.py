@@ -1,9 +1,9 @@
 from typing import Optional
 
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent as _create_agent
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.tools import tool
+from langchain.tools import tool
 
 from app.agents.baseball_prompts import baseball_system_prompt
 from app.agents.baseball_tools import baseball_tools
@@ -31,10 +31,9 @@ def build_baseball_agent(
     temperature: float = 0.7,
 ):
     """MLB 야구 분석 전용 LangGraph ReAct 에이전트를 생성합니다."""
-    llm = ChatOpenAI(
-        model=model_name or settings.OPENAI_MODEL,
+    llm = init_chat_model(
+        model_name or settings.OPENAI_MODEL,
         temperature=temperature,
-        api_key=settings.OPENAI_API_KEY,
     )
 
     agent = _create_agent(

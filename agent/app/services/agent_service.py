@@ -8,7 +8,6 @@ import uuid
 from app.utils.logger import log_execution, custom_logger
 from app.agents.agent import build_agent
 
-from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
 
@@ -34,7 +33,7 @@ class AgentService:
             # IMP: LangGraph 에이전트에 사용자의 메시지를 HumanMessage 형태로 전달하고, 
             # thread_id를 통해 대화 문맥(Context)을 유지하며 비동기 스트리밍(astream)으로 실행하는 구현.
             agent_stream = self.agent.astream(
-                {"messages": [HumanMessage(content=user_messages)]},
+                {"messages": [{"role": "user", "content": user_messages}]},
                 config={"configurable": {"thread_id": str(thread_id)}},
                 stream_mode="updates",
             )

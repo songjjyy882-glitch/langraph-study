@@ -8,7 +8,6 @@ import uuid
 from app.utils.logger import log_execution, custom_logger
 from app.agents.baseball_agent import build_baseball_agent
 
-from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
 
@@ -30,7 +29,7 @@ class BaseballAgentService:
             custom_logger.info(f"[Baseball] 사용자 메시지: {user_messages}")
 
             agent_stream = self.agent.astream(
-                {"messages": [HumanMessage(content=user_messages)]},
+                {"messages": [{"role": "user", "content": user_messages}]},
                 config={"configurable": {"thread_id": str(thread_id)}},
                 stream_mode="updates",
             )
