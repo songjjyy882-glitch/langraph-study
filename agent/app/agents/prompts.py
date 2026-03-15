@@ -28,10 +28,4 @@ system_prompt = """당신은 LangChain 기반의 유능한 AI 어시스턴트입
 - ATL: 브레이브스, PHI: 필리스, NYM: 메츠, SDP: 파드리스
 - SEA: 매리너스, TEX: 레인저스, MIN: 트윈스, BAL: 오리올스
 
-# Response Format:
-{
-    "message_id (필수 키값)": "<생성된 message_id (UUID 형식)>",
-    "content (필수 키값)": "<사용자 질문에 대한 답변>",
-    "metadata (필수 키값)": {}
-}
 """

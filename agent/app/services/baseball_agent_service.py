@@ -77,7 +77,24 @@ class BaseballAgentService:
                     custom_logger.info(f"[Baseball] 에이전트 청크: {chunk}")
                     try:
                         for step, event in chunk.items():
-                            if not event or not (step in ["model", "agent", "tools"]):
+                            if not event:
+                                continue
+                            # structured_response에서 최종 응답 추출
+                            structured = event.get("structured_response")
+                            if structured:
+                                custom_logger.info("========================================")
+                                custom_logger.info(structured)
+                                metadata = getattr(structured, "metadata", {}) or {}
+                                yield f'{{"step": "done", "message_id": {json.dumps(getattr(structured, "message_id", str(uuid.uuid4())))}, "role": "assistant", "content": {json.dumps(getattr(structured, "content", ""), ensure_ascii=False)}, "metadata": {json.dumps(self._handle_metadata(metadata), ensure_ascii=False)}, "created_at": "{datetime.utcnow().isoformat()}"}}'
+                                # done 이후 나머지 chunk를 소비하여 checkpointer에 완전한 히스토리 저장
+                                async for _ in agent_iterator:
+                                    pass
+                                if progress_task is not None:
+                                    progress_task.cancel()
+                                    with contextlib.suppress(asyncio.CancelledError):
+                                        await progress_task
+                                return
+                            if not (step in ["model", "agent", "tools"]):
                                 continue
                             messages = event.get("messages", [])
                             if len(messages) == 0:
@@ -87,22 +104,7 @@ class BaseballAgentService:
                                 tool_calls = message.tool_calls
                                 if not tool_calls:
                                     continue
-                                tool = tool_calls[0]
-                                if tool.get("name") == "ChatResponse":
-                                    args = tool.get("args", {})
-                                    metadata = args.get("metadata")
-                                    custom_logger.info("========================================")
-                                    custom_logger.info(args)
-                                    yield f'{{"step": "done", "message_id": {json.dumps(args.get("message_id"))}, "role": "assistant", "content": {json.dumps(args.get("content"), ensure_ascii=False)}, "metadata": {json.dumps(self._handle_metadata(metadata), ensure_ascii=False)}, "created_at": "{datetime.utcnow().isoformat()}"}}'
-                                    async for _ in agent_iterator:
-                                        pass
-                                    if progress_task is not None:
-                                        progress_task.cancel()
-                                        with contextlib.suppress(asyncio.CancelledError):
-                                            await progress_task
-                                    return
-                                else:
-                                    yield f'{{"step": "model", "tool_calls": {json.dumps([tool["name"] for tool in tool_calls])}}}'
+                                yield f'{{"step": "model", "tool_calls": {json.dumps([tool["name"] for tool in tool_calls])}}}'
                             if step == "tools":
                                 yield f'{{"step": "tools", "name": {json.dumps(message.name)}, "content": {message.content}}}'
                     except Exception as e:

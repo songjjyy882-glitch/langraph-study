@@ -7,24 +7,20 @@ from langchain.agents.middleware import (
     ToolRetryMiddleware,
     ModelCallLimitMiddleware,
 )
+from langchain.agents.structured_output import ToolStrategy
 from langgraph.checkpoint.memory import MemorySaver
-from langchain.tools import tool
+from pydantic import BaseModel, Field
 
 from app.agents.prompts import system_prompt
 from app.agents.baseball_tools import baseball_tools
 from app.core.config import settings
 
 
-@tool
-def ChatResponse(message_id: str, content: str, metadata: dict) -> str:
-    """최종 응답을 사용자에게 반환할 때 반드시 이 도구를 사용합니다.
-
-    Args:
-        message_id: 응답 메시지의 고유 UUID
-        content: 사용자 질문에 대한 답변 내용
-        metadata: 추가 메타데이터 (빈 dict 가능)
-    """
-    return "Response delivered."
+class ChatResponseFormat(BaseModel):
+    """에이전트의 구조화된 최종 응답 포맷"""
+    message_id: str = Field(description="응답 메시지의 고유 UUID")
+    content: str = Field(description="사용자 질문에 대한 답변 내용")
+    metadata: dict = Field(default_factory=dict, description="추가 메타데이터")
 
 
 # 싱글턴 checkpointer (서버 수명 동안 대화 기록 유지)
@@ -46,8 +42,9 @@ def build_agent(
 
     agent = _create_agent(
         model=llm,
-        tools=[*baseball_tools, ChatResponse],
+        tools=baseball_tools,
         system_prompt=system_prompt,
+        response_format=ToolStrategy(ChatResponseFormat),
         middleware=[
             SummarizationMiddleware(
                 model="gpt-4o-mini",
