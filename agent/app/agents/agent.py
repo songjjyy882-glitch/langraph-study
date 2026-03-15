@@ -2,6 +2,11 @@ from typing import Optional
 
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent as _create_agent
+from langchain.agents.middleware import (
+    SummarizationMiddleware,
+    ToolRetryMiddleware,
+    ModelCallLimitMiddleware,
+)
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.tools import tool
 
@@ -43,6 +48,18 @@ def build_agent(
         model=llm,
         tools=[*baseball_tools, ChatResponse],
         system_prompt=system_prompt,
+        middleware=[
+            SummarizationMiddleware(
+                model="gpt-4o-mini",
+                trigger=("tokens", 4000),
+                keep=("messages", 10),
+            ),
+            ToolRetryMiddleware(max_retries=2, backoff_factor=2.0),
+            ModelCallLimitMiddleware(
+                run_limit=settings.DEEPAGENT_RECURSION_LIMIT,
+                exit_behavior="end",
+            ),
+        ],
         checkpointer=_checkpointer,
     )
 
