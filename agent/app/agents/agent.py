@@ -28,7 +28,7 @@ _checkpointer = MemorySaver()
 
 def build_agent(
     model_name: Optional[str] = None,
-    temperature: float = 0.7,
+    temperature: float = 0,
 ):
     """LangGraph ReAct 에이전트를 생성합니다."""
     llm = ChatOpenAI(
