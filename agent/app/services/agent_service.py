@@ -7,6 +7,7 @@ import uuid
 
 from app.utils.logger import log_execution, custom_logger
 from app.agents.agent import get_agent
+from app.core.opik_tracer import opik_tracer
 
 from langgraph.errors import GraphRecursionError
 
@@ -28,7 +29,10 @@ class AgentService:
             # thread_id를 통해 대화 문맥(Context)을 유지하며 비동기 스트리밍(astream)으로 실행하는 구현.
             agent_stream = agent.astream(
                 {"messages": [{"role": "user", "content": user_messages}]},
-                config={"configurable": {"thread_id": str(thread_id)}},
+                config={
+                    "configurable": {"thread_id": str(thread_id)},
+                    "callbacks": [opik_tracer],
+                },
                 stream_mode="updates",
             )
 

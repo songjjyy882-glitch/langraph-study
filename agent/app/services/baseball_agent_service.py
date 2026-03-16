@@ -7,6 +7,7 @@ import uuid
 
 from app.utils.logger import log_execution, custom_logger
 from app.agents.baseball_agent import get_baseball_agent
+from app.core.opik_tracer import opik_tracer
 
 from langgraph.errors import GraphRecursionError
 
@@ -25,7 +26,10 @@ class BaseballAgentService:
 
             agent_stream = agent.astream(
                 {"messages": [{"role": "user", "content": user_messages}]},
-                config={"configurable": {"thread_id": str(thread_id)}},
+                config={
+                    "configurable": {"thread_id": str(thread_id)},
+                    "callbacks": [opik_tracer],
+                },
                 stream_mode="updates",
             )
 
