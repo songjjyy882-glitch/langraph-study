@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from functools import lru_cache
 from typing import Optional
 
 from langchain.tools import tool
@@ -11,6 +12,40 @@ from pybaseball import (
     statcast_pitcher,
     playerid_lookup,
 )
+
+
+# ── pybaseball 캐시 래퍼 (동일 요청 반복 스크래핑 방지) ──
+
+@lru_cache(maxsize=32)
+def _cached_batting_stats(season: int):
+    return batting_stats(season, season, qual=0)
+
+
+@lru_cache(maxsize=32)
+def _cached_pitching_stats(season: int):
+    return pitching_stats(season, season, qual=0)
+
+
+@lru_cache(maxsize=32)
+def _cached_schedule(season: int, team_abbr: str):
+    return schedule_and_record(season, team_abbr)
+
+
+@lru_cache(maxsize=64)
+def _cached_player_id(player_name: str) -> Optional[int]:
+    parts = player_name.strip().split()
+    if len(parts) < 2:
+        return None
+    first = parts[0]
+    last = " ".join(parts[1:])
+    try:
+        result = playerid_lookup(last, first, fuzzy=True)
+        if result.empty:
+            return None
+        result = result.sort_values("mlb_played_last", ascending=False)
+        return int(result.iloc[0]["key_mlbam"])
+    except Exception:
+        return None
 
 # 주요 팀 약어 매핑
 TEAM_ABBR = {
@@ -33,21 +68,8 @@ TEAM_ABBR = {
 
 
 def _lookup_player_id(player_name: str) -> Optional[int]:
-    """선수 이름으로 MLBAM ID를 조회합니다."""
-    parts = player_name.strip().split()
-    if len(parts) < 2:
-        return None
-    first = parts[0]
-    last = " ".join(parts[1:])
-    try:
-        result = playerid_lookup(last, first, fuzzy=True)
-        if result.empty:
-            return None
-        # 가장 최근에 활동한 선수를 우선 선택
-        result = result.sort_values("mlb_played_last", ascending=False)
-        return int(result.iloc[0]["key_mlbam"])
-    except Exception:
-        return None
+    """선수 이름으로 MLBAM ID를 조회합니다. (캐시 사용)"""
+    return _cached_player_id(player_name)
 
 
 def _resolve_team_abbr(team_name: str) -> str:
@@ -85,11 +107,11 @@ def search_player_stats(
 
     try:
         # 타격 스탯 조회
-        bat_df = batting_stats(season, season, qual=0)
+        bat_df = _cached_batting_stats(season)
         bat_match = bat_df[bat_df["Name"].str.contains(player_name, case=False, na=False)]
 
         # 투수 스탯 조회
-        pitch_df = pitching_stats(season, season, qual=0)
+        pitch_df = _cached_pitching_stats(season)
         pitch_match = pitch_df[pitch_df["Name"].str.contains(player_name, case=False, na=False)]
 
         results = {}
@@ -162,8 +184,8 @@ def compare_players(
         season = datetime.now().year
 
     try:
-        bat_df = batting_stats(season, season, qual=0)
-        pitch_df = pitching_stats(season, season, qual=0)
+        bat_df = _cached_batting_stats(season)
+        pitch_df = _cached_pitching_stats(season)
 
         comparison = {"season": season, "players": {}}
 
@@ -229,7 +251,7 @@ def search_game_results(
 
     try:
         team_abbr = _resolve_team_abbr(team)
-        df = schedule_and_record(season, team_abbr)
+        df = _cached_schedule(season, team_abbr)
 
         if df.empty:
             return json.dumps({"error": f"'{team}'의 {season}시즌 경기 기록을 찾을 수 없습니다."}, ensure_ascii=False)
