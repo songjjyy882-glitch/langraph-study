@@ -53,7 +53,7 @@ def build_agent(
             ),
             ToolRetryMiddleware(max_retries=2, backoff_factor=2.0),
             ModelCallLimitMiddleware(
-                run_limit=settings.DEEPAGENT_RECURSION_LIMIT,
+                run_limit=min(settings.DEEPAGENT_RECURSION_LIMIT, 5),
                 exit_behavior="end",
             ),
         ],
