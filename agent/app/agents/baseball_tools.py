@@ -1,3 +1,4 @@
+import difflib
 import json
 from datetime import datetime
 from functools import lru_cache
@@ -72,6 +73,28 @@ def _lookup_player_id(player_name: str) -> Optional[int]:
     return _cached_player_id(player_name)
 
 
+def _fuzzy_match_name(df, player_name: str, cutoff: float = 0.6):
+    """DataFrame의 Name 컬럼에서 퍼지 매칭으로 가장 유사한 선수를 찾습니다."""
+    names = df["Name"].dropna().tolist()
+    matches = difflib.get_close_matches(player_name, names, n=1, cutoff=cutoff)
+    if matches:
+        return df[df["Name"] == matches[0]]
+    # 성(last name)만으로도 시도
+    last_name = player_name.strip().split()[-1] if player_name.strip() else player_name
+    last_matches = difflib.get_close_matches(last_name, [n.split()[-1] for n in names], n=3, cutoff=cutoff)
+    if last_matches:
+        candidates = df[df["Name"].apply(lambda n: n.split()[-1] in last_matches)]
+        if not candidates.empty:
+            # 전체 이름 유사도로 최종 정렬
+            candidates = candidates.copy()
+            candidates["_sim"] = candidates["Name"].apply(
+                lambda n: difflib.SequenceMatcher(None, player_name.lower(), n.lower()).ratio()
+            )
+            candidates = candidates.sort_values("_sim", ascending=False)
+            return candidates.head(1).drop(columns=["_sim"])
+    return df.head(0)  # 빈 DataFrame
+
+
 def _resolve_team_abbr(team_name: str) -> str:
     """팀 이름을 약어로 변환합니다. 이미 약어면 그대로 반환."""
     upper = team_name.upper().strip()
@@ -109,10 +132,14 @@ def search_player_stats(
         # 타격 스탯 조회
         bat_df = _cached_batting_stats(season)
         bat_match = bat_df[bat_df["Name"].str.contains(player_name, case=False, na=False)]
+        if bat_match.empty:
+            bat_match = _fuzzy_match_name(bat_df, player_name)
 
         # 투수 스탯 조회
         pitch_df = _cached_pitching_stats(season)
         pitch_match = pitch_df[pitch_df["Name"].str.contains(player_name, case=False, na=False)]
+        if pitch_match.empty:
+            pitch_match = _fuzzy_match_name(pitch_df, player_name)
 
         results = {}
 
@@ -193,6 +220,8 @@ def compare_players(
             player_data = {}
 
             bat_match = bat_df[bat_df["Name"].str.contains(name, case=False, na=False)]
+            if bat_match.empty:
+                bat_match = _fuzzy_match_name(bat_df, name)
             if not bat_match.empty:
                 row = bat_match.iloc[0]
                 player_data["batting"] = {
@@ -210,6 +239,8 @@ def compare_players(
                 }
 
             pitch_match = pitch_df[pitch_df["Name"].str.contains(name, case=False, na=False)]
+            if pitch_match.empty:
+                pitch_match = _fuzzy_match_name(pitch_df, name)
             if not pitch_match.empty:
                 row = pitch_match.iloc[0]
                 player_data["pitching"] = {
