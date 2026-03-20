@@ -25,6 +25,7 @@ from opik.evaluation.metrics import BaseMetric
 from opik.evaluation.metrics.score_result import ScoreResult
 
 from app.agents.agent import get_agent
+from app.core.opik_tracer import opik_tracer
 from app.evaluation.dataset import create_dataset
 
 
@@ -121,7 +122,10 @@ def agent_task(item: Dict[str, Any]) -> Dict[str, Any]:
     # 동기 실행 (evaluate는 동기 함수 기대)
     for chunk in agent.stream(
         {"messages": [{"role": "user", "content": item["input"]}]},
-        config={"configurable": {"thread_id": thread_id}},
+        config={
+            "configurable": {"thread_id": thread_id},
+            "callbacks": [opik_tracer],
+        },
         stream_mode="updates",
     ):
         for step, event in chunk.items():
