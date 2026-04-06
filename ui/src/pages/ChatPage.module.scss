@@ -115,9 +115,38 @@
 		}
 		.content{
 			display:flex;
+			flex-flow: column;
 			gap: 12px;
+
+			table {
+				border-collapse: collapse;
+				width: 100%;
+				font-size: 14px;
+				white-space: nowrap;
+
+				th, td {
+					border: 1px solid #D1D5DB;
+					padding: 8px 12px;
+					text-align: center;
+				}
+				th {
+					background-color: #F3F4F6;
+					font-weight: 600;
+				}
+				tr:nth-child(even) {
+					background-color: #F9FAFB;
+				}
+			}
+
+			blockquote {
+				border-left: 3px solid #6366F1;
+				margin: 8px 0;
+				padding: 4px 12px;
+				color: #4B5563;
+				font-style: italic;
+			}
 		}
-		
+
 	}
 	.scroll{
 		margin-bottom: 80px;

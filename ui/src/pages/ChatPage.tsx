@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, CircularProgress, Container, Typography } from '@mui/material';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { MessageInput } from '@/components/MessageInput';
 import { useChat } from '@/hooks/useChat';
 import styles from './ChatPage.module.scss'
@@ -63,7 +65,7 @@ export const ChatPage = () => {
 					<div key={index} className={assistant}>
 						<div className={content}>
 							{msg.isLoading && <CircularProgress size={24} />}
-							<Typography>{msg.content}</Typography>
+							<ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
 						</div>
 
 						{msg.metadata &&
