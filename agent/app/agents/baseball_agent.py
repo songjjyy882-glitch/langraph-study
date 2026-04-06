@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.agents.baseball_prompts import baseball_system_prompt
 from app.agents.baseball_tools import baseball_tools
+from app.agents.es_tools import es_tools
 from app.core.config import settings
 
 
@@ -42,7 +43,7 @@ def build_baseball_agent(
 
     agent = _create_agent(
         model=llm,
-        tools=baseball_tools,
+        tools=baseball_tools + es_tools,
         system_prompt=baseball_system_prompt,
         response_format=ToolStrategy(ChatResponseFormat),
         middleware=[
