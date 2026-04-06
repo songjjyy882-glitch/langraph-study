@@ -287,8 +287,13 @@ def search_game_results(
         if df.empty:
             return json.dumps({"error": f"'{team}'의 {season}시즌 경기 기록을 찾을 수 없습니다."}, ensure_ascii=False)
 
-        # 최근 10경기만 반환 (전체는 너무 길 수 있음)
-        recent = df.tail(10)
+        # 결과가 있는 경기만 필터링 (W/L이 NaN이 아닌 것 = 이미 치른 경기)
+        played = df[df["W/L"].notna()]
+        if played.empty:
+            return json.dumps({"error": f"'{team}'의 {season}시즌에 아직 치른 경기가 없습니다."}, ensure_ascii=False)
+
+        # 최근 10경기만 반환
+        recent = played.tail(10)
         games = []
         for _, row in recent.iterrows():
             games.append({
@@ -302,7 +307,7 @@ def search_game_results(
                 "Losing_Pitcher": str(row.get("Loss", "")),
             })
 
-        total_record = str(df.iloc[-1].get("W-L", "")) if not df.empty else ""
+        total_record = str(played.iloc[-1].get("W-L", "")) if not played.empty else ""
 
         result = {
             "team": team_abbr,
