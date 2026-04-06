@@ -92,6 +92,7 @@ class BaseballAgentService:
                                     "historical": "📊 Elasticsearch 역대 기록 검색",
                                     "game_results": "🏟️ pybaseball 경기 결과 조회",
                                     "general": "💬 일반 답변 (검색 없음)",
+                                    "complex": "🧠 Deep Agent 다단계 분석",
                                 }.get(query_type, query_type)
                                 yield f'{{"step": "model", "tool_calls": ["{node_label}"]}}'
 
@@ -118,6 +119,23 @@ class BaseballAgentService:
                                                 yield f'{{"step": "tools", "name": {json.dumps(tool_name)}, "content": {json.dumps(parsed, ensure_ascii=False)}}}'
                                             except json.JSONDecodeError:
                                                 yield f'{{"step": "tools", "name": {json.dumps(tool_name)}, "content": {json.dumps(tool_content, ensure_ascii=False)}}}'
+
+                            # Deep Agent 노드: 최종 응답 스트리밍
+                            elif node_name == "deep_agent_node":
+                                messages = event.get("messages", [])
+                                if messages:
+                                    last_msg = messages[-1]
+                                    content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+                                    got_final_response = True
+                                    yield f'{{"step": "done", "message_id": {json.dumps(str(uuid.uuid4()))}, "role": "assistant", "content": {json.dumps(content, ensure_ascii=False)}, "metadata": {{}}, "created_at": "{datetime.utcnow().isoformat()}"}}'
+
+                                    async for _ in agent_iterator:
+                                        pass
+                                    if progress_task is not None:
+                                        progress_task.cancel()
+                                        with contextlib.suppress(asyncio.CancelledError):
+                                            await progress_task
+                                    return
 
                             # 분석 노드: 최종 응답 스트리밍
                             elif node_name == "analysis":

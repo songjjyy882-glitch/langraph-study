@@ -16,6 +16,7 @@ dependencies = [
     "pybaseball>=2.2.0",
     "deepeval>=2.0.0",
     "elasticsearch>=9.3.0",
+    "deepagents>=0.4.12",
 ]
 
 [build-system]
