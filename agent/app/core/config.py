@@ -2,6 +2,13 @@ from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
+class ESSettings(BaseSettings):
+    """Elasticsearch configuration."""
+    URL: str = Field(description="Elasticsearch URL")
+    USERNAME: str = Field(description="Elasticsearch username")
+    PASSWORD: str = Field(description="Elasticsearch password")
+
+
 class OpikSettings(BaseSettings):
     """Opik configuration."""
 
@@ -30,6 +37,7 @@ class Settings(BaseSettings):
     DEEPAGENT_RECURSION_LIMIT: int = 20
 
     OPIK: OpikSettings | None = None
+    ES: ESSettings | None = None
     
     model_config = SettingsConfigDict(
         env_file=".env",

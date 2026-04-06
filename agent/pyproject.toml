@@ -15,6 +15,7 @@ dependencies = [
     "opik>=1.10.4",
     "pybaseball>=2.2.0",
     "deepeval>=2.0.0",
+    "elasticsearch>=9.3.0",
 ]
 
 [build-system]
