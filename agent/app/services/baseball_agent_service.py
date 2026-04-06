@@ -2,11 +2,10 @@ import asyncio
 import contextlib
 from datetime import datetime
 import json
-from typing import Optional
 import uuid
 
 from app.utils.logger import log_execution, custom_logger
-from app.agents.baseball_agent import get_baseball_agent
+from app.agents.graph import get_baseball_graph
 from app.core.opik_tracer import opik_tracer
 
 from langgraph.errors import GraphRecursionError
@@ -18,13 +17,13 @@ class BaseballAgentService:
 
     @log_execution
     async def process_query(self, user_messages: str, thread_id: uuid.UUID):
-        """사용자 쿼리를 처리하고 스트리밍으로 반환합니다."""
+        """사용자 쿼리를 LangGraph 커스텀 그래프로 처리하고 스트리밍으로 반환합니다."""
         try:
-            agent = get_baseball_agent()
+            graph = get_baseball_graph()
 
             custom_logger.info(f"[Baseball] 사용자 메시지: {user_messages}")
 
-            agent_stream = agent.astream(
+            agent_stream = graph.astream(
                 {"messages": [{"role": "user", "content": user_messages}]},
                 config={
                     "configurable": {"thread_id": str(thread_id)},
@@ -36,6 +35,7 @@ class BaseballAgentService:
             agent_iterator = agent_stream.__aiter__()
             agent_task = asyncio.create_task(agent_iterator.__anext__())
             progress_task = asyncio.create_task(self.progress_queue.get())
+            got_final_response = False
 
             while True:
                 pending = {agent_task}
@@ -78,39 +78,65 @@ class BaseballAgentService:
                         yield json.dumps(error_response, ensure_ascii=False)
                         break
 
-                    custom_logger.info(f"[Baseball] 에이전트 청크: {chunk}")
+                    custom_logger.info(f"[Baseball] 그래프 청크: {chunk}")
                     try:
-                        for step, event in chunk.items():
+                        for node_name, event in chunk.items():
                             if not event:
                                 continue
-                            # structured_response에서 최종 응답 추출
-                            structured = event.get("structured_response")
-                            if structured:
-                                custom_logger.info("========================================")
-                                custom_logger.info(structured)
-                                metadata = getattr(structured, "metadata", {}) or {}
-                                yield f'{{"step": "done", "message_id": {json.dumps(getattr(structured, "message_id", str(uuid.uuid4())))}, "role": "assistant", "content": {json.dumps(getattr(structured, "content", ""), ensure_ascii=False)}, "metadata": {json.dumps(self._handle_metadata(metadata), ensure_ascii=False)}, "created_at": "{datetime.utcnow().isoformat()}"}}'
-                                # done 이후 나머지 chunk를 소비하여 checkpointer에 완전한 히스토리 저장
-                                async for _ in agent_iterator:
-                                    pass
-                                if progress_task is not None:
-                                    progress_task.cancel()
-                                    with contextlib.suppress(asyncio.CancelledError):
-                                        await progress_task
-                                return
-                            if not (step in ["model", "agent", "tools"]):
-                                continue
-                            messages = event.get("messages", [])
-                            if len(messages) == 0:
-                                continue
-                            message = messages[0]
-                            if step in ("model", "agent"):
-                                tool_calls = message.tool_calls
-                                if not tool_calls:
-                                    continue
-                                yield f'{{"step": "model", "tool_calls": {json.dumps([tool["name"] for tool in tool_calls])}}}'
-                            if step == "tools":
-                                yield f'{{"step": "tools", "name": {json.dumps(message.name)}, "content": {message.content}}}'
+
+                            # 라우터 노드: 질문 유형 분류 결과 스트리밍
+                            if node_name == "router":
+                                query_type = event.get("query_type", "")
+                                node_label = {
+                                    "realtime_stats": "⚾ pybaseball 실시간 조회",
+                                    "historical": "📊 Elasticsearch 역대 기록 검색",
+                                    "game_results": "🏟️ pybaseball 경기 결과 조회",
+                                    "general": "💬 일반 답변 (검색 없음)",
+                                }.get(query_type, query_type)
+                                yield f'{{"step": "model", "tool_calls": ["{node_label}"]}}'
+
+                            # 검색 노드: tool 호출 결과 스트리밍
+                            elif node_name in ("realtime_node", "historical_node", "game_node"):
+                                search_results = event.get("search_results", "")
+                                if search_results and search_results != "검색 결과 없음":
+                                    # search_results를 파싱해서 tool name 추출
+                                    tool_names = []
+                                    for line in search_results.split("\n\n"):
+                                        if line.startswith("[") and "]" in line:
+                                            tool_name = line[1:line.index("]")]
+                                            tool_names.append(tool_name)
+                                    if tool_names:
+                                        yield f'{{"step": "model", "tool_calls": {json.dumps(tool_names)}}}'
+
+                                    # tool 결과를 개별 스트리밍
+                                    for line in search_results.split("\n\n"):
+                                        if line.startswith("[") and "]" in line:
+                                            tool_name = line[1:line.index("]")]
+                                            tool_content = line[line.index("]") + 2:]
+                                            try:
+                                                parsed = json.loads(tool_content)
+                                                yield f'{{"step": "tools", "name": {json.dumps(tool_name)}, "content": {json.dumps(parsed, ensure_ascii=False)}}}'
+                                            except json.JSONDecodeError:
+                                                yield f'{{"step": "tools", "name": {json.dumps(tool_name)}, "content": {json.dumps(tool_content, ensure_ascii=False)}}}'
+
+                            # 분석 노드: 최종 응답 스트리밍
+                            elif node_name == "analysis":
+                                messages = event.get("messages", [])
+                                if messages:
+                                    last_msg = messages[-1]
+                                    content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+                                    got_final_response = True
+                                    yield f'{{"step": "done", "message_id": {json.dumps(str(uuid.uuid4()))}, "role": "assistant", "content": {json.dumps(content, ensure_ascii=False)}, "metadata": {{}}, "created_at": "{datetime.utcnow().isoformat()}"}}'
+
+                                    # 나머지 chunk 소비
+                                    async for _ in agent_iterator:
+                                        pass
+                                    if progress_task is not None:
+                                        progress_task.cancel()
+                                        with contextlib.suppress(asyncio.CancelledError):
+                                            await progress_task
+                                    return
+
                     except Exception as e:
                         custom_logger.error(f"[Baseball] Error processing chunk: {e}")
                         import traceback
@@ -140,6 +166,18 @@ class BaseballAgentService:
                 except asyncio.QueueEmpty:
                     break
                 yield json.dumps(remaining, ensure_ascii=False)
+
+            if not got_final_response:
+                custom_logger.warning("[Baseball] 그래프가 최종 응답 없이 종료됨")
+                fallback_response = {
+                    "step": "done",
+                    "message_id": str(uuid.uuid4()),
+                    "role": "assistant",
+                    "content": "처리 한도에 도달하여 응답을 완료하지 못했습니다. 질문을 더 구체적으로 해주시거나 다시 시도해주세요.",
+                    "metadata": {},
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+                yield json.dumps(fallback_response, ensure_ascii=False)
 
         except Exception as e:
             import traceback
