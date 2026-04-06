@@ -3,7 +3,7 @@ import uuid
 from app.utils.logger import custom_logger
 from fastapi import APIRouter, HTTPException
 from app.models.chat import ChatRequest
-from app.services.agent_service import AgentService
+from app.services.baseball_agent_service import BaseballAgentService
 from fastapi.responses import StreamingResponse
 
 chat_router = APIRouter()
@@ -30,7 +30,7 @@ async def post_chat(request: ChatRequest):
         async def event_generator():
             try:
                 yield f'data: {{"step": "model", "tool_calls": ["Planning"]}}\n\n'
-                agent_service = AgentService()
+                agent_service = BaseballAgentService()
                 async for chunk in agent_service.process_query(
                     user_messages=request.message,
                     thread_id=thread_id

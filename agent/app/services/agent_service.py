@@ -39,6 +39,7 @@ class AgentService:
             agent_iterator = agent_stream.__aiter__()
             agent_task = asyncio.create_task(agent_iterator.__anext__())
             progress_task = asyncio.create_task(self.progress_queue.get())
+            got_structured_response = False
 
             while True:
                 pending = {agent_task}
@@ -92,6 +93,7 @@ class AgentService:
                             # structured_response에서 최종 응답 추출
                             structured = event.get("structured_response")
                             if structured:
+                                got_structured_response = True
                                 custom_logger.info("========================================")
                                 custom_logger.info(structured)
                                 metadata = getattr(structured, "metadata", {}) or {}
@@ -147,6 +149,19 @@ class AgentService:
                 except asyncio.QueueEmpty:
                     break
                 yield json.dumps(remaining, ensure_ascii=False)
+
+            # run_limit 등으로 structured_response 없이 스트림이 종료된 경우 fallback 응답
+            if not got_structured_response:
+                custom_logger.warning("스트림이 structured_response 없이 종료됨 (run_limit 도달 가능성)")
+                fallback_response = {
+                    "step": "done",
+                    "message_id": str(uuid.uuid4()),
+                    "role": "assistant",
+                    "content": "처리 한도에 도달하여 응답을 완료하지 못했습니다. 질문을 더 구체적으로 해주시거나 다시 시도해주세요.",
+                    "metadata": {},
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+                yield json.dumps(fallback_response, ensure_ascii=False)
 
         except Exception as e:
             import traceback
